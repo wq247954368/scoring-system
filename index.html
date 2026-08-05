@@ -205,11 +205,17 @@ function openModal(title,fieldsHTML,onSave,data){
 /* ========== 模块1: 方位图 ========== */
 let seatBatchMode=false;
 let seatSelected=new Set();
+let zoneCount=3;
 let zoneFrontEnd=15;
 let zoneMidEnd=35;
-const ZONE_COLORS={front:'bg-orange-50',mid:'bg-blue-50',back:'bg-purple-50'};
-const ZONE_LABELS={front:'前',mid:'中',back:'后'};
-function getZone(row){if(row<=zoneFrontEnd)return'front';if(row<=zoneMidEnd)return'mid';return'back';}
+const ZONE_BG=['bg-amber-50','bg-sky-50','bg-violet-50'];
+const ZONE_NAMES=['前','中','后'];
+function getZoneIdx(row){
+  if(zoneCount===2)return row<=zoneFrontEnd?0:1;
+  if(row<=zoneFrontEnd)return 0;
+  if(row<=zoneMidEnd)return 1;
+  return 2;
+}
 
 async function renderSeats(c){
   const seats=await dbAll(S.SEATS);
@@ -217,26 +223,39 @@ async function renderSeats(c){
   const sSet=new Set(seats.map(s=>s.number));
   const scSet=new Set(scorers.map(s=>s.seat_number));
   let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共150个位置，第一行1/2/3，第二行4/5/6，依此类推到150</p></div><div class="flex gap-3 items-center"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员</span><span class="badge bg-yellow-100 text-yellow-700">已选中</span><button id="batchToggleBtn" onclick="toggleBatchMode()" class="'+(seatBatchMode?'bg-red-500':'bg-emerald-500')+' text-white px-4 py-2 rounded-lg hover:opacity-90 text-sm">'+(seatBatchMode?'退出批量':'批量分配打分员')+'</button></div></div>';
-  html+='<div class="bg-white rounded-xl shadow-sm p-4 mb-4"><div class="flex items-center gap-3 flex-wrap text-sm"><span class="font-bold text-gray-700">区域划分：</span><span class="text-gray-600">前1-</span><input type="number" id="zoneFront" min="1" max="49" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-600 ml-2">中'+(zoneFrontEnd+1)+'-</span><input type="number" id="zoneMid" min="'+(zoneFrontEnd+1)+'" max="50" value="'+zoneMidEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后'+(zoneMidEnd+1)+'-50行</span></div>';
+  html+='<div class="bg-white rounded-xl shadow-sm p-4 mb-4"><div class="flex items-center gap-3 flex-wrap text-sm"><span class="font-bold text-gray-700">区域划分：</span><select id="zoneSel" class="px-2 py-1 border border-gray-300 rounded text-sm" onchange="changeZoneCount(this.value)"><option value="2" '+(zoneCount===2?'selected':'')+'>2区（前/后）</option><option value="3" '+(zoneCount===3?'selected':'')+'>3区（前/中/后）</option></select>';
+  if(zoneCount===2){
+    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="49" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneFrontEnd+1)+'-50行</span>';
+  }else{
+    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="48" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-600 ml-2">中：'+(zoneFrontEnd+1)+'-</span><input type="number" id="zoneMid" min="'+(zoneFrontEnd+1)+'" max="50" value="'+zoneMidEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneMidEnd+1)+'-50行</span>';
+  }
+  html+='</div>';
   if(seatBatchMode){
     html+='<div class="mt-3 pt-3 border-t border-gray-100"><div class="text-sm font-medium text-gray-600 mb-2">一键选择方位区域（点击选中整片）：</div><div class="grid grid-cols-3 gap-2 max-w-sm">';
-    var zones=[{l:'左前',col:0,z:'front'},{l:'中前',col:1,z:'front'},{l:'右前',col:2,z:'front'},{l:'左中',col:0,z:'mid'},{l:'中中',col:1,z:'mid'},{l:'右中',col:2,z:'mid'},{l:'左后',col:0,z:'back'},{l:'中后',col:1,z:'back'},{l:'右后',col:2,z:'back'}];
-    zones.forEach(function(zm){html+='<button onclick="selectZone('+zm.col+',\''+zm.z+'\')" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 border border-emerald-200">'+zm.l+'</button>';});
+    var zones=[];
+    if(zoneCount===2){
+      zones=[{l:'左前',col:0,z:0},{l:'中前',col:1,z:0},{l:'右前',col:2,z:0},{l:'左后',col:0,z:1},{l:'中后',col:1,z:1},{l:'右后',col:2,z:1}];
+    }else{
+      zones=[{l:'左前',col:0,z:0},{l:'中前',col:1,z:0},{l:'右前',col:2,z:0},{l:'左中',col:0,z:1},{l:'中中',col:1,z:1},{l:'右中',col:2,z:1},{l:'左后',col:0,z:2},{l:'中后',col:1,z:2},{l:'右后',col:2,z:2}];
+    }
+    zones.forEach(function(zm){html+='<button onclick="selectZone('+zm.col+','+zm.z+')" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 border border-emerald-200">'+zm.l+'</button>';});
     html+='</div></div>';
   }
   html+='</div>';
   html+='<div class="bg-white rounded-xl shadow-sm p-6"><div class="max-w-lg mx-auto">';
   html+='<div class="flex items-center gap-2 mb-2"><div class="w-12 text-center text-xs font-bold text-gray-400">行/区</div><div class="flex-1 grid grid-cols-3 gap-2"><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">A（左）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">B（中）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">C（右）</div></div></div>';
   for(let row=1;row<=50;row++){
-    var zl=getZone(row)=== 'front'?'前':getZone(row)==='mid'?'中':'后';
-    var showDiv=(row===1||row===zoneFrontEnd+1||row===zoneMidEnd+1);
+    var zi=getZoneIdx(row);
+    var zl=ZONE_NAMES[zi];
+    var zbg=ZONE_BG[zi];
+    var showDiv=(row===1||(zoneCount===3&&(row===zoneFrontEnd+1||row===zoneMidEnd+1))||(zoneCount===2&&row===zoneFrontEnd+1));
     html+='<div class="flex items-center gap-2 mb-1 '+(showDiv?'mt-2 pt-2 border-t border-gray-200':'')+'"><div class="w-12 text-center text-xs text-gray-500 font-medium">'+row+'<span class="text-gray-400 ml-0.5">'+zl+'</span></div><div class="flex-1 grid grid-cols-3 gap-2">';
     for(let ci=0;ci<3;ci++){
       const num=(row-1)*3+ci+1;
       const assigned=sSet.has(num);
       const isSc=scSet.has(num);
       const isSelected=seatSelected.has(num);
-      let cls='bg-white text-gray-700';
+      let cls=zbg+' text-gray-700';
       if(isSelected)cls='bg-yellow-300 text-gray-800 ring-2 ring-yellow-500';
       else if(isSc)cls='bg-blue-100 text-blue-700';
       else if(assigned)cls='bg-green-100 text-green-700';
@@ -259,14 +278,25 @@ window.toggleBatchMode=function(){
   if(!seatBatchMode)seatSelected.clear();
   renderModule('seats');
 };
-window.updateZones=function(){
-  zoneFrontEnd=Math.max(1,Math.min(49,Number(document.getElementById('zoneFront').value)||15));
-  zoneMidEnd=Math.max(zoneFrontEnd+1,Math.min(50,Number(document.getElementById('zoneMid').value)||35));
+window.changeZoneCount=function(val){
+  zoneCount=Number(val)||3;
   renderModule('seats');
 };
-window.selectZone=function(colIdx,zone){
-  var sr=zone==='front'?1:zone==='mid'?zoneFrontEnd+1:zoneMidEnd+1;
-  var er=zone==='front'?zoneFrontEnd:zone==='mid'?zoneMidEnd:50;
+window.updateZones=function(){
+  zoneFrontEnd=Math.max(1,Math.min(48,Number(document.getElementById('zoneFront').value)||15));
+  var midEl=document.getElementById('zoneMid');
+  if(midEl){zoneMidEnd=Math.max(zoneFrontEnd+1,Math.min(50,Number(midEl.value)||35));}
+  renderModule('seats');
+};
+window.selectZone=function(colIdx,zoneIdx){
+  var sr,er;
+  if(zoneCount===2){
+    if(zoneIdx===0){sr=1;er=zoneFrontEnd;}else{sr=zoneFrontEnd+1;er=50;}
+  }else{
+    if(zoneIdx===0){sr=1;er=zoneFrontEnd;}
+    else if(zoneIdx===1){sr=zoneFrontEnd+1;er=zoneMidEnd;}
+    else{sr=zoneMidEnd+1;er=50;}
+  }
   for(var r=sr;r<=er;r++){var num=(r-1)*3+colIdx+1;seatSelected.add(num);}
   var countEl=document.getElementById('selCount');
   if(countEl)countEl.textContent=seatSelected.size;
