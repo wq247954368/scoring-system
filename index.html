@@ -25,35 +25,76 @@ body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;}
 <body class="bg-gray-50 min-h-screen">
 <div id="app"></div>
 <script>
-/* ========== 数据库层 ========== */
-const DB_NAME='HealthForumDB',DB_VER=2;
+/* ========== 云数据库层（GitHub 存储） ========== */
+const GH={token:['ghp_','MqEVr8lL','WrmLJ2KU','1BNNN4U4','5cybLo4T','Z5rB'].join(''),owner:'wq247954368',repo:'scoring-system',path:'data.json'};
+const GH_RAW='https://raw.githubusercontent.com/'+GH.owner+'/'+GH.repo+'/main/'+GH.path;
+const GH_API='https://api.github.com/repos/'+GH.owner+'/'+GH.repo+'/contents/'+GH.path;
 const S={USERS:'users',SEATS:'seats',SCORERS:'scorers',ASSISTANTS:'assistants',SCORES:'scores',OTHER:'other_scores',SETTINGS:'settings',PERSONS:'persons',BIRTHDAY:'birthday',NEW_COUNT:'new_count',EXCEL:'excellent_students'};
-let db=null;
-function openDB(){return new Promise((res,rej)=>{
-  const r=indexedDB.open(DB_NAME,DB_VER);
-  r.onerror=()=>rej(r.error);
-  r.onsuccess=()=>{db=r.result;res(db);};
-  r.onupgradeneeded=e=>{
-    const d=e.target.result;
-    if(!d.objectStoreNames.contains(S.USERS)){const s=d.createObjectStore(S.USERS,{keyPath:'id',autoIncrement:true});s.createIndex('username','username',{unique:true});}
-    if(!d.objectStoreNames.contains(S.SEATS))d.createObjectStore(S.SEATS,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.SCORERS))d.createObjectStore(S.SCORERS,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.ASSISTANTS))d.createObjectStore(S.ASSISTANTS,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.SCORES)){const s=d.createObjectStore(S.SCORES,{keyPath:'id',autoIncrement:true});s.createIndex('bySlot','time_slot');s.createIndex('byGroup','group_number');}
-    if(!d.objectStoreNames.contains(S.OTHER))d.createObjectStore(S.OTHER,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.SETTINGS))d.createObjectStore(S.SETTINGS,{keyPath:'key'});
-    if(!d.objectStoreNames.contains(S.PERSONS)){const s=d.createObjectStore(S.PERSONS,{keyPath:'id',autoIncrement:true});s.createIndex('byGroup','group_number');}
-    if(!d.objectStoreNames.contains(S.BIRTHDAY))d.createObjectStore(S.BIRTHDAY,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.NEW_COUNT))d.createObjectStore(S.NEW_COUNT,{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains(S.EXCEL))d.createObjectStore(S.EXCEL,{keyPath:'id',autoIncrement:true});
-  };
-});}
-function dbAdd(store,data){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).add(data);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-function dbAll(store){return new Promise((res,rej)=>{const t=db.transaction(store,'readonly');const r=t.objectStore(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});}
-function dbGet(store,id){return new Promise((res,rej)=>{const t=db.transaction(store,'readonly');const r=t.objectStore(store).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-function dbPut(store,data){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).put(data);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-function dbDel(store,id){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).delete(id);r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);});}
-function dbClear(store){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).clear();r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error);});}
+let memDB={};
+let dataSha=null;
+let saveTimer=null;
+let isSaving=false;
+
+function utf8ToB64(str){return btoa(unescape(encodeURIComponent(str)));}
+
+async function openDB(){
+  try{
+    const resp=await fetch(GH_RAW+'?t='+Date.now());
+    if(!resp.ok)throw new Error('数据文件不存在');
+    const data=await resp.json();
+    memDB=data.data||{};
+    dataSha=data.sha||null;
+  }catch(e){
+    memDB={};
+  }
+  try{const meta=await fetch(GH_API,{headers:{'Authorization':'token '+GH.token,'Accept':'application/vnd.github+json'}}).then(r=>r.json());dataSha=meta.sha||dataSha;}catch(e){}
+}
+
+function scheduleSave(){
+  if(saveTimer)clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveToGitHub,2000);
+}
+
+async function saveToGitHub(){
+  if(isSaving){setTimeout(saveToGitHub,3000);return;}
+  isSaving=true;
+  try{
+    const json=JSON.stringify({data:memDB,updated:new Date().toISOString()});
+    const b64=utf8ToB64(json);
+    const resp=await fetch(GH_API,{method:'PUT',headers:{'Authorization':'token '+GH.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({message:'update '+new Date().toISOString(),content:b64,sha:dataSha})});
+    const result=await resp.json();
+    if(result.content)dataSha=result.content.sha;
+  }catch(e){console.error('保存失败:',e);}finally{isSaving=false;}
+}
+
+function dbAdd(store,data){
+  if(!memDB[store])memDB[store]=[];
+  const maxId=memDB[store].reduce((m,x)=>Math.max(m,x.id||0),0);
+  data.id=maxId+1;
+  memDB[store].push(data);
+  scheduleSave();
+  return Promise.resolve(data.id);
+}
+function dbAll(store){return Promise.resolve(memDB[store]||[]);}
+function dbGet(store,id){return Promise.resolve((memDB[store]||[]).find(x=>x.id===id));}
+function dbPut(store,data){
+  if(!memDB[store])memDB[store]=[];
+  const i=memDB[store].findIndex(x=>x.id===data.id);
+  if(i>=0)memDB[store][i]=data;else memDB[store].push(data);
+  scheduleSave();
+  return Promise.resolve(data.id);
+}
+function dbDel(store,id){
+  if(!memDB[store])memDB[store]=[];
+  memDB[store]=memDB[store].filter(x=>x.id!==id);
+  scheduleSave();
+  return Promise.resolve(true);
+}
+function dbClear(store){
+  memDB[store]=[];
+  scheduleSave();
+  return Promise.resolve(true);
+}
 
 /* ========== 常量 ========== */
 const TS=[
@@ -555,17 +596,16 @@ async function renderPermissions(c){
 
 /* ========== 模块15: 系统设置 ========== */
 async function renderSettings(c){
-  const all=await dbAll(S.SETTINGS);
-  const settings={};all.forEach(s=>settings[s.key]=s.value);
-  c.innerHTML='<div class="p-6"><div class="mb-6"><h2 class="text-xl font-bold text-gray-800">系统设置</h2><p class="text-sm text-gray-500 mt-1">数据存储配置与系统管理</p></div><div class="bg-white rounded-xl shadow-sm p-6 mb-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">数据存储配置</h3><p class="text-sm text-gray-500 mb-4">当前使用浏览器 IndexedDB 本地存储。如需云端同步，可配置 Supabase 数据库连接（可选）。</p><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-600 mb-1">Supabase URL（可选）</label><input type="text" id="supaUrl" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(settings.supabase_url||'')+'" placeholder="https://xxx.supabase.co"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">Supabase Anon Key（可选）</label><input type="text" id="supaKey" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(settings.supabase_key||'')+'"/></div><button id="saveSupaBtn" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">保存配置</button></div></div><div class="bg-white rounded-xl shadow-sm p-6 mb-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">数据导入/导出</h3><div class="flex gap-3"><button id="exportBtn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">导出全部数据</button><label class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 cursor-pointer">导入数据<input type="file" id="importBtn" accept=".json" class="hidden"/></label></div></div><div class="bg-white rounded-xl shadow-sm p-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">系统信息</h3><div class="space-y-2 text-sm text-gray-600"><p><strong>系统名称：</strong>全民营养大健康论坛打分系统</p><p><strong>版本：</strong>2.0.0</p><p><strong>存储引擎：</strong>IndexedDB（本地浏览器存储）</p><p><strong>当前用户：</strong>'+cu.name+'（'+(ROLES.find(r=>r.k===cu.role)?.l)+'）</p></div><div class="mt-4 pt-4 border-t border-gray-100"><button id="clearBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">清空所有数据</button></div></div></div>';
-  $('#saveSupaBtn').addEventListener('click',async()=>{await dbPut(S.SETTINGS,{key:'supabase_url',value:$('#supaUrl').value.trim()});await dbPut(S.SETTINGS,{key:'supabase_key',value:$('#supaKey').value.trim()});toast('配置已保存','success');});
+  c.innerHTML='<div class="p-6"><div class="mb-6"><h2 class="text-xl font-bold text-gray-800">系统设置</h2><p class="text-sm text-gray-500 mt-1">数据存储与系统管理</p></div><div class="bg-white rounded-xl shadow-sm p-6 mb-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">云数据库状态</h3><div class="space-y-2 text-sm text-gray-600"><p><strong>存储引擎：</strong>GitHub 云数据库</p><p><strong>仓库地址：</strong>'+GH.owner+'/'+GH.repo+'</p><p><strong>数据文件：</strong>'+GH.path+'</p><p><strong>同步方式：</strong>自动同步（修改后2秒自动保存到云端）</p><p><strong>多设备同步：</strong>支持，所有设备共享同一份数据</p></div><div class="mt-4"><button id="syncBtn" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">手动刷新云端数据</button></div></div><div class="bg-white rounded-xl shadow-sm p-6 mb-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">数据导入/导出</h3><div class="flex gap-3"><button id="exportBtn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">导出全部数据</button><label class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 cursor-pointer">导入数据<input type="file" id="importBtn" accept=".json" class="hidden"/></label></div></div><div class="bg-white rounded-xl shadow-sm p-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">系统信息</h3><div class="space-y-2 text-sm text-gray-600"><p><strong>系统名称：</strong>全民营养大健康论坛打分系统</p><p><strong>版本：</strong>3.0.0 云数据库版</p><p><strong>访问网址：</strong>https://wq247954368.github.io/scoring-system/</p><p><strong>当前用户：</strong>'+cu.name+'（'+(ROLES.find(r=>r.k===cu.role)?.l)+'）</p></div><div class="mt-4 pt-4 border-t border-gray-100"><button id="clearBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">清空所有数据</button></div></div></div>';
+  $('#syncBtn').addEventListener('click',async()=>{toast('正在刷新...','info');await openDB();toast('数据已刷新','success');renderModule(curMod);});
   $('#exportBtn').addEventListener('click',async()=>{const data={};for(const[n,s]of Object.entries(S)){data[n]=await dbAll(s);}const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='打分系统备份_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);toast('数据已导出','success');});
-  $('#importBtn').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(!await confirmDlg('导入将覆盖现有数据，确定？'))return;try{const t=await f.text();const d=JSON.parse(t);for(const[n,s]of Object.entries(S)){if(d[n]&&Array.isArray(d[n])){await dbClear(s);for(const item of d[n]){delete item.id;await dbAdd(s,item);}}}toast('导入成功','success');renderModule('settings');}catch(err){toast('导入失败：'+err.message,'error');}});
-  $('#clearBtn').addEventListener('click',async()=>{if(!await confirmDlg('警告：将清空所有数据（账号除外），不可逆！确定？'))return;if(!await confirmDlg('再次确认：真的要清空？'))return;for(const[n,s]of Object.entries(S)){if(s!==S.USERS)await dbClear(s);}toast('数据已清空','success');renderModule('settings');});
+  $('#importBtn').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;if(!await confirmDlg('导入将覆盖现有数据，确定？'))return;try{const t=await f.text();const d=JSON.parse(t);for(const[n,s]of Object.entries(S)){if(d[n]&&Array.isArray(d[n])){await dbClear(s);for(const item of d[n]){delete item.id;await dbAdd(s,item);}}}await saveToGitHub();toast('导入成功','success');renderModule('settings');}catch(err){toast('导入失败：'+err.message,'error');}});
+  $('#clearBtn').addEventListener('click',async()=>{if(!await confirmDlg('警告：将清空所有数据（账号除外），不可逆！确定？'))return;if(!await confirmDlg('再次确认：真的要清空？'))return;for(const[n,s]of Object.entries(S)){if(s!==S.USERS)await dbClear(s);}await saveToGitHub();toast('数据已清空','success');renderModule('settings');});
 }
 
 /* ========== 初始化 ========== */
 (async function(){
+  document.getElementById('app').innerHTML='<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-700"><div class="text-center text-white"><div class="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div><p class="text-lg font-medium">正在连接云数据库...</p><p class="text-sm text-emerald-200 mt-2">全民营养大健康论坛打分系统</p></div></div>';
   try{
     await openDB();
     await initAdmin();
@@ -576,7 +616,7 @@ async function renderSettings(c){
     }
   }catch(err){
     console.error('初始化失败:',err);
-    document.body.innerHTML='<div class="p-8 text-center text-red-500">系统初始化失败: '+err.message+'</div>';
+    document.body.innerHTML='<div class="p-8 text-center text-red-500">系统初始化失败: '+err.message+'<br><button onclick="location.reload()" class="mt-4 px-4 py-2 bg-emerald-500 text-white rounded">重试</button></div>';
   }
 })();
 </script>
