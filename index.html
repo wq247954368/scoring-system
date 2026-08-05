@@ -206,29 +206,30 @@ async function renderSeats(c){
   const sSet=new Set(seats.map(s=>s.number));
   const scSet=new Set(scorers.map(s=>s.seat_number));
   let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共150个位置，第一行1/2/3，第二行4/5/6，依此类推到150</p></div><div class="flex gap-3 items-center"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员</span><span class="badge bg-yellow-100 text-yellow-700">已选中</span><button id="batchToggleBtn" onclick="toggleBatchMode()" class="'+(seatBatchMode?'bg-red-500':'bg-emerald-500')+' text-white px-4 py-2 rounded-lg hover:opacity-90 text-sm">'+(seatBatchMode?'退出批量':'批量分配打分员')+'</button></div></div>';
-  html+='<div class="bg-white rounded-xl shadow-sm p-6"><div class="max-w-md mx-auto">';
-  html+='<div class="grid grid-cols-3 gap-2 mb-2"><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">A（左）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">B（中）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">C（右）</div></div>';
-  html+='<div class="grid grid-cols-3 gap-2">';
-  for(let num=1;num<=150;num++){
-    const assigned=sSet.has(num);
-    const isSc=scSet.has(num);
-    const isSelected=seatSelected.has(num);
-    let cls='bg-white text-gray-700';
-    if(isSelected)cls='bg-yellow-300 text-gray-800 ring-2 ring-yellow-500';
-    else if(isSc)cls='bg-blue-100 text-blue-700';
-    else if(assigned)cls='bg-green-100 text-green-700';
-    const sd=seats.find(s=>s.number===num);
-    const pn=sd&&sd.person_name?sd.person_name:'';
-    const title=sd?'组号:'+sd.group_number+', 人员:'+sd.person_name:'';
-    if(seatBatchMode){
-      html+='<div class="seat '+cls+'" title="'+title+'" onclick="toggleSeatSel('+num+')">'+num+(pn?'<div class="text-xs font-normal text-gray-500 truncate" style="max-width:40px">'+pn+'</div>':'')+'</div>';
-    }else{
-      html+='<div class="seat '+cls+'" title="'+title+'" onclick="seatClick('+num+')">'+num+(pn?'<div class="text-xs font-normal text-gray-500 truncate" style="max-width:40px">'+pn+'</div>':'')+'</div>';
+  html+='<div class="bg-white rounded-xl shadow-sm p-6"><div class="max-w-lg mx-auto">';
+  html+='<div class="flex items-center gap-2 mb-2"><div class="w-8 text-center text-xs font-bold text-gray-400">行</div><div class="flex-1 grid grid-cols-3 gap-2"><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">A（左）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">B（中）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">C（右）</div></div></div>';
+  for(let row=1;row<=50;row++){
+    html+='<div class="flex items-center gap-2 mb-1"><div class="w-8 text-center text-xs text-gray-400 font-medium">'+row+'</div><div class="flex-1 grid grid-cols-3 gap-2">';
+    for(let ci=0;ci<3;ci++){
+      const num=(row-1)*3+ci+1;
+      const assigned=sSet.has(num);
+      const isSc=scSet.has(num);
+      const isSelected=seatSelected.has(num);
+      let cls='bg-white text-gray-700';
+      if(isSelected)cls='bg-yellow-300 text-gray-800 ring-2 ring-yellow-500';
+      else if(isSc)cls='bg-blue-100 text-blue-700';
+      else if(assigned)cls='bg-green-100 text-green-700';
+      const sd=seats.find(s=>s.number===num);
+      const pn=sd&&sd.person_name?sd.person_name:'';
+      const title=sd?'组号:'+sd.group_number+', 人员:'+sd.person_name:'';
+      const click=seatBatchMode?'toggleSeatSel(event,'+num+')':'seatClick('+num+')';
+      html+='<div class="seat '+cls+'" data-num="'+num+'" data-assigned="'+assigned+'" data-sc="'+isSc+'" title="'+title+'" onclick="'+click+'">'+num+(pn?'<div class="text-xs font-normal text-gray-500 truncate" style="max-width:40px">'+pn+'</div>':'')+'</div>';
     }
+    html+='</div></div>';
   }
-  html+='</div><div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，第三行7/8/9，依此类推到150。点击座位可编辑信息，保存后自动同步到打分员信息表。</p></div></div></div>';
+  html+='<div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，第三行7/8/9，依此类推到150。点击座位可编辑信息，保存后自动同步到打分员信息表。</p></div></div></div>';
   if(seatBatchMode){
-    html+='<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4 z-40"><div class="max-w-md mx-auto flex items-center gap-3 flex-wrap"><span class="text-sm font-medium text-gray-700">已选 <span id="selCount" class="text-emerald-600 font-bold">'+seatSelected.size+'</span> 个座位</span><input type="text" id="batchPerson" class="flex-1 min-w-[120px] px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="输入打分员姓名"/><input type="text" id="batchPosition" class="flex-1 min-w-[80px] px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="岗位(可选)"/><button onclick="clearSeatSel()" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">清空</button><button onclick="batchAssign()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600">确认分配</button></div></div>';
+    html+='<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4 z-40"><div class="max-w-lg mx-auto flex items-center gap-2 flex-wrap"><span class="text-sm font-medium text-gray-700">已选 <span id="selCount" class="text-emerald-600 font-bold">'+seatSelected.size+'</span> 个</span><input type="text" id="batchPerson" class="flex-1 min-w-[100px] px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="打分员姓名"/><input type="text" id="batchPhone" class="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="联系电话"/><input type="text" id="batchPosition" class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="岗位"/><button onclick="clearSeatSel()" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">清空</button><button onclick="batchAssign()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600">确认分配</button></div></div>';
   }
   c.innerHTML=html;
 }
@@ -237,14 +238,28 @@ window.toggleBatchMode=function(){
   if(!seatBatchMode)seatSelected.clear();
   renderModule('seats');
 };
-window.toggleSeatSel=function(num){
+window.toggleSeatSel=function(ev,num){
+  ev.stopPropagation();
   if(seatSelected.has(num))seatSelected.delete(num);
   else seatSelected.add(num);
-  renderModule('seats');
+  const countEl=document.getElementById('selCount');
+  if(countEl)countEl.textContent=seatSelected.size;
+  const el=ev.currentTarget;
+  if(seatSelected.has(num)){
+    el.className='seat bg-yellow-300 text-gray-800 ring-2 ring-yellow-500';
+  }else{
+    const assigned=el.dataset.assigned==='true';
+    const isSc=el.dataset.sc==='true';
+    let cls='bg-white text-gray-700';
+    if(isSc)cls='bg-blue-100 text-blue-700';
+    else if(assigned)cls='bg-green-100 text-green-700';
+    el.className='seat '+cls;
+  }
 };
 window.clearSeatSel=function(){seatSelected.clear();renderModule('seats');};
 window.batchAssign=async function(){
   const person=$('#batchPerson').value.trim();
+  const phone=$('#batchPhone').value.trim();
   const position=$('#batchPosition').value.trim();
   if(!person){toast('请输入打分员姓名','warning');return;}
   if(seatSelected.size===0){toast('请先选择座位','warning');return;}
@@ -257,7 +272,7 @@ window.batchAssign=async function(){
     if(seat.id)d.id=seat.id;
     await dbPut(S.SEATS,d);
     const linked=scorers.find(s=>s.seat_number===num);
-    const sd={seat_number:num,column:col,person:person,scorer_code:col+'-'+row,position:position||''};
+    const sd={seat_number:num,column:col,person:person,phone:phone,scorer_code:col+'-'+row,position:position||''};
     if(linked)sd.id=linked.id;
     await dbPut(S.SCORERS,sd);
   }
@@ -280,7 +295,7 @@ window.seatClick=async function(num){
       await dbPut(S.SEATS,d);
       const personName=$('#seatPerson').value.trim();
       if(personName){
-        const sd={seat_number:num,column:col,person:personName,scorer_code:col+'-'+row,position:linkedScorer?linkedScorer.position:''};
+        const sd={seat_number:num,column:col,person:personName,phone:linkedScorer?linkedScorer.phone||'':'',scorer_code:col+'-'+row,position:linkedScorer?linkedScorer.position:''};
         if(linkedScorer)sd.id=linkedScorer.id;
         await dbPut(S.SCORERS,sd);
         toast('已同步到打分员信息表','success');
@@ -296,16 +311,16 @@ window.seatClick=async function(num){
 /* ========== 模块2: 打分员信息 ========== */
 async function renderScorers(c){
   const list=await dbAll(S.SCORERS);
-  let rows=list.length===0?'<tr><td colspan="6" class="text-center py-8 text-gray-400">暂无数据</td></tr>':list.map((s,i)=>'<tr class="hover:bg-gray-50"><td class="px-4 py-3 text-sm text-gray-700">'+(i+1)+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.position||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.person||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.column||'')+'</td><td class="px-4 py-3 text-sm text-gray-700 font-medium">'+(s.scorer_code||'')+'</td><td class="px-4 py-3 text-sm"><button onclick="editScorer('+s.id+')" class="text-emerald-600 hover:text-emerald-700 mr-3">编辑</button><button onclick="delScorer('+s.id+')" class="text-red-500 hover:text-red-600">删除</button></td></tr>').join('');
-  c.innerHTML='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">打分员信息</h2><p class="text-sm text-gray-500 mt-1">打分员由方位-人员列数据组成，在方位图编辑座位时自动同步</p></div><button onclick="addScorer()" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">添加打分员</button></div><div class="bg-white rounded-xl shadow-sm overflow-hidden"><table class="w-full"><thead class="bg-gray-50 border-b border-gray-200"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">序号</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">岗位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">人员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">打分员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th></tr></thead><tbody class="divide-y divide-gray-100">'+rows+'</tbody></table></div></div>';
+  let rows=list.length===0?'<tr><td colspan="7" class="text-center py-8 text-gray-400">暂无数据</td></tr>':list.map((s,i)=>'<tr class="hover:bg-gray-50"><td class="px-4 py-3 text-sm text-gray-700">'+(i+1)+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.position||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.person||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.column||'')+'</td><td class="px-4 py-3 text-sm text-gray-700 font-medium">'+(s.scorer_code||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.phone||'')+'</td><td class="px-4 py-3 text-sm"><button onclick="editScorer('+s.id+')" class="text-emerald-600 hover:text-emerald-700 mr-3">编辑</button><button onclick="delScorer('+s.id+')" class="text-red-500 hover:text-red-600">删除</button></td></tr>').join('');
+  c.innerHTML='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">打分员信息</h2><p class="text-sm text-gray-500 mt-1">打分员由方位-人员列数据组成，在方位图编辑座位时自动同步</p></div><button onclick="addScorer()" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">添加打分员</button></div><div class="bg-white rounded-xl shadow-sm overflow-hidden"><table class="w-full"><thead class="bg-gray-50 border-b border-gray-200"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">序号</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">岗位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">人员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">打分员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">联系电话</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th></tr></thead><tbody class="divide-y divide-gray-100">'+rows+'</tbody></table></div></div>';
 }
 window.addScorer=()=>{scorerForm();};
 window.editScorer=async id=>{const s=await dbGet(S.SCORERS,id);scorerForm(s);};
 window.delScorer=async id=>{if(await confirmDlg('确定删除？')){await dbDel(S.SCORERS,id);toast('删除成功','success');renderModule('scorers');}};
 function scorerForm(d={}){
   openModal((d.id?'编辑':'添加')+'打分员',
-    '<div><label class="block text-sm font-medium text-gray-600 mb-1">岗位</label><input type="text" id="scPosition" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.position||'')+'"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">人员</label><input type="text" id="scPerson" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.person||'')+'"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">方位</label><select id="scColumn" class="w-full px-3 py-2 border border-gray-300 rounded-lg">'+COLS.map(c=>'<option value="'+c.k+'" '+(d.column===c.k?'selected':'')+'>'+c.l+'</option>').join('')+'</select></div><div><label class="block text-sm font-medium text-gray-600 mb-1">打分员（方位-人员列）</label><input type="text" id="scCode" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.scorer_code||'')+'" placeholder="如 A-1"/></div>',
-    async()=>{const d2={position:$('#scPosition').value.trim(),person:$('#scPerson').value.trim(),column:$('#scColumn').value,scorer_code:$('#scCode').value.trim()};if(d.id)d2.id=d.id;if(!d2.position||!d2.person||!d2.scorer_code){toast('请填写完整','warning');return false;}await dbPut(S.SCORERS,d2);toast('保存成功','success');renderModule('scorers');}
+    '<div><label class="block text-sm font-medium text-gray-600 mb-1">岗位</label><input type="text" id="scPosition" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.position||'')+'"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">人员</label><input type="text" id="scPerson" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.person||'')+'"/></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-600 mb-1">方位</label><select id="scColumn" class="w-full px-3 py-2 border border-gray-300 rounded-lg">'+COLS.map(c=>'<option value="'+c.k+'" '+(d.column===c.k?'selected':'')+'>'+c.l+'</option>').join('')+'</select></div><div><label class="block text-sm font-medium text-gray-600 mb-1">联系电话</label><input type="text" id="scPhone" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.phone||'')+'" placeholder="手机号"/></div></div><div><label class="block text-sm font-medium text-gray-600 mb-1">打分员（方位-人员列）</label><input type="text" id="scCode" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(d.scorer_code||'')+'" placeholder="如 A-1"/></div>',
+    async()=>{const d2={position:$('#scPosition').value.trim(),person:$('#scPerson').value.trim(),column:$('#scColumn').value,phone:$('#scPhone').value.trim(),scorer_code:$('#scCode').value.trim()};if(d.id)d2.id=d.id;if(!d2.person||!d2.scorer_code){toast('请填写人员和打分员编码','warning');return false;}await dbPut(S.SCORERS,d2);toast('保存成功','success');renderModule('scorers');}
   );
   $('#scColumn').addEventListener('change',()=>{const col=$('#scColumn').value;const p=$('#scPerson').value.trim();if(p&&!$('#scCode').value.trim())$('#scCode').value=col+'-'+p;});
   $('#scPerson').addEventListener('input',()=>{const col=$('#scColumn').value;const p=$('#scPerson').value.trim();if(p&&!$('#scCode').value.trim())$('#scCode').value=col+'-'+p;});
