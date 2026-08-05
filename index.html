@@ -79,8 +79,14 @@ function dbAll(store){return Promise.resolve(memDB[store]||[]);}
 function dbGet(store,id){return Promise.resolve((memDB[store]||[]).find(x=>x.id===id));}
 function dbPut(store,data){
   if(!memDB[store])memDB[store]=[];
-  const i=memDB[store].findIndex(x=>x.id===data.id);
-  if(i>=0)memDB[store][i]=data;else memDB[store].push(data);
+  if(data.id){
+    const i=memDB[store].findIndex(x=>x.id===data.id);
+    if(i>=0)memDB[store][i]=data;else memDB[store].push(data);
+  }else{
+    const maxId=memDB[store].reduce((m,x)=>Math.max(m,x.id||0),0);
+    data.id=maxId+1;
+    memDB[store].push(data);
+  }
   scheduleSave();
   return Promise.resolve(data.id);
 }
