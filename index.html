@@ -206,6 +206,7 @@ function openModal(title,fieldsHTML,onSave,data){
 let seatBatchMode=false;
 let seatSelected=new Set();
 let zoneCount=3;
+let totalRows=50;
 let zoneFrontEnd=15;
 let zoneMidEnd=35;
 const ZONE_BG=['bg-amber-50','bg-sky-50','bg-violet-50'];
@@ -222,12 +223,12 @@ async function renderSeats(c){
   const scorers=await dbAll(S.SCORERS);
   const sSet=new Set(seats.map(s=>s.number));
   const scSet=new Set(scorers.map(s=>s.seat_number));
-  let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共150个位置，第一行1/2/3，第二行4/5/6，依此类推到150</p></div><div class="flex gap-3 items-center"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员</span><span class="badge bg-yellow-100 text-yellow-700">已选中</span><button id="batchToggleBtn" onclick="toggleBatchMode()" class="'+(seatBatchMode?'bg-red-500':'bg-emerald-500')+' text-white px-4 py-2 rounded-lg hover:opacity-90 text-sm">'+(seatBatchMode?'退出批量':'批量分配打分员')+'</button></div></div>';
-  html+='<div class="bg-white rounded-xl shadow-sm p-4 mb-4"><div class="flex items-center gap-3 flex-wrap text-sm"><span class="font-bold text-gray-700">区域划分：</span><select id="zoneSel" class="px-2 py-1 border border-gray-300 rounded text-sm" onchange="changeZoneCount(this.value)"><option value="2" '+(zoneCount===2?'selected':'')+'>2区（前/后）</option><option value="3" '+(zoneCount===3?'selected':'')+'>3区（前/中/后）</option></select>';
+  let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共'+(totalRows*3)+'个位置，第一行1/2/3，第二行4/5/6，依此类推</p></div><div class="flex gap-3 items-center"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员</span><span class="badge bg-yellow-100 text-yellow-700">已选中</span><button id="batchToggleBtn" onclick="toggleBatchMode()" class="'+(seatBatchMode?'bg-red-500':'bg-emerald-500')+' text-white px-4 py-2 rounded-lg hover:opacity-90 text-sm">'+(seatBatchMode?'退出批量':'批量分配打分员')+'</button></div></div>';
+  html+='<div class="bg-white rounded-xl shadow-sm p-4 mb-4"><div class="flex items-center gap-3 flex-wrap text-sm"><span class="font-bold text-gray-700">实际行数：</span><input type="number" id="totalRowsInput" min="1" max="50" value="'+totalRows+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateTotalRows()"/><span class="text-gray-600">行</span><span class="font-bold text-gray-700 ml-3">区域划分：</span><select id="zoneSel" class="px-2 py-1 border border-gray-300 rounded text-sm" onchange="changeZoneCount(this.value)"><option value="2" '+(zoneCount===2?'selected':'')+'>2区（前/后）</option><option value="3" '+(zoneCount===3?'selected':'')+'>3区（前/中/后）</option></select>';
   if(zoneCount===2){
-    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="49" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneFrontEnd+1)+'-50行</span>';
+    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="'+(totalRows-1)+'" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneFrontEnd+1)+'-'+totalRows+'行</span>';
   }else{
-    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="48" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-600 ml-2">中：'+(zoneFrontEnd+1)+'-</span><input type="number" id="zoneMid" min="'+(zoneFrontEnd+1)+'" max="50" value="'+zoneMidEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneMidEnd+1)+'-50行</span>';
+    html+='<span class="text-gray-600">前：1-</span><input type="number" id="zoneFront" min="1" max="'+(totalRows-2)+'" value="'+zoneFrontEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-600 ml-2">中：'+(zoneFrontEnd+1)+'-</span><input type="number" id="zoneMid" min="'+(zoneFrontEnd+1)+'" max="'+(totalRows-1)+'" value="'+zoneMidEnd+'" class="w-14 px-2 py-1 border border-gray-300 rounded text-sm text-center" onchange="updateZones()"/><span class="text-gray-600">行</span><span class="text-gray-400 ml-2">后：'+(zoneMidEnd+1)+'-'+totalRows+'行</span>';
   }
   html+='</div>';
   if(seatBatchMode){
@@ -244,7 +245,7 @@ async function renderSeats(c){
   html+='</div>';
   html+='<div class="bg-white rounded-xl shadow-sm p-6"><div class="max-w-lg mx-auto">';
   html+='<div class="flex items-center gap-2 mb-2"><div class="w-12 text-center text-xs font-bold text-gray-400">行/区</div><div class="flex-1 grid grid-cols-3 gap-2"><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">A（左）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">B（中）</div><div class="text-center font-bold text-gray-700 pb-2 border-b-2 border-emerald-400">C（右）</div></div></div>';
-  for(let row=1;row<=50;row++){
+  for(let row=1;row<=totalRows;row++){
     var zi=getZoneIdx(row);
     var zl=ZONE_NAMES[zi];
     var zbg=ZONE_BG[zi];
@@ -267,7 +268,7 @@ async function renderSeats(c){
     }
     html+='</div></div>';
   }
-  html+='<div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，依此类推到150。区域可灵活划分前/中/后，配合左/中/右形成9个方位。</p></div></div></div>';
+  html+='<div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，依此类推。区域可灵活划分前/中/后（或前/后），配合左/中/右形成方位。实际使用行数可根据需要调整。</p></div></div></div>';
   if(seatBatchMode){
     html+='<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4 z-40"><div class="max-w-lg mx-auto flex items-center gap-2 flex-wrap"><span class="text-sm font-medium text-gray-700">已选 <span id="selCount" class="text-emerald-600 font-bold">'+seatSelected.size+'</span> 个</span><input type="text" id="batchPerson" class="flex-1 min-w-[100px] px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="打分员姓名"/><input type="text" id="batchPhone" class="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="联系电话"/><input type="text" id="batchPosition" class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="岗位"/><button onclick="clearSeatSel()" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">清空</button><button onclick="batchAssign()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600">确认分配</button></div></div>';
   }
@@ -283,24 +284,31 @@ window.changeZoneCount=function(val){
   renderModule('seats');
 };
 window.updateZones=function(){
-  zoneFrontEnd=Math.max(1,Math.min(48,Number(document.getElementById('zoneFront').value)||15));
+  zoneFrontEnd=Math.max(1,Math.min(totalRows-(zoneCount===3?2:1),Number(document.getElementById('zoneFront').value)||zoneFrontEnd));
   var midEl=document.getElementById('zoneMid');
-  if(midEl){zoneMidEnd=Math.max(zoneFrontEnd+1,Math.min(50,Number(midEl.value)||35));}
+  if(midEl){zoneMidEnd=Math.max(zoneFrontEnd+1,Math.min(totalRows-1,Number(midEl.value)||zoneMidEnd));}
   renderModule('seats');
 };
 window.selectZone=function(colIdx,zoneIdx){
   var sr,er;
   if(zoneCount===2){
-    if(zoneIdx===0){sr=1;er=zoneFrontEnd;}else{sr=zoneFrontEnd+1;er=50;}
+    if(zoneIdx===0){sr=1;er=zoneFrontEnd;}else{sr=zoneFrontEnd+1;er=totalRows;}
   }else{
     if(zoneIdx===0){sr=1;er=zoneFrontEnd;}
     else if(zoneIdx===1){sr=zoneFrontEnd+1;er=zoneMidEnd;}
-    else{sr=zoneMidEnd+1;er=50;}
+    else{sr=zoneMidEnd+1;er=totalRows;}
   }
   for(var r=sr;r<=er;r++){var num=(r-1)*3+colIdx+1;seatSelected.add(num);}
   var countEl=document.getElementById('selCount');
   if(countEl)countEl.textContent=seatSelected.size;
   document.querySelectorAll('.seat').forEach(function(el){var n=Number(el.dataset.num);if(seatSelected.has(n))el.className='seat bg-yellow-300 text-gray-800 ring-2 ring-yellow-500';});
+};
+window.updateTotalRows=function(){
+  var v=Math.max(1,Math.min(50,Number(document.getElementById('totalRowsInput').value)||50));
+  totalRows=v;
+  if(zoneFrontEnd>=totalRows)zoneFrontEnd=Math.max(1,Math.floor(totalRows/2));
+  if(zoneCount===3&&zoneMidEnd>=totalRows)zoneMidEnd=Math.min(totalRows-1,zoneFrontEnd+Math.floor((totalRows-zoneFrontEnd)/2));
+  renderModule('seats');
 };
 window.toggleSeatSel=function(ev,num){
   ev.stopPropagation();
