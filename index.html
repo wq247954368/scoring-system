@@ -14,7 +14,7 @@ body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;}
 .modal-bg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:50;display:flex;align-items:center;justify-content:center;}
 .fade-in{animation:fi .2s ease-in;}
 @keyframes fi{from{opacity:0}to{opacity:1}}
-.seat{width:56px;height:56px;display:flex;align-items:center;justify-content:center;border:1px solid #d1d5db;border-radius:6px;font-weight:600;cursor:pointer;transition:all .15s;font-size:14px;}
+.seat{width:44px;height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #d1d5db;border-radius:6px;font-weight:600;cursor:pointer;transition:all .15s;font-size:13px;padding:2px;}
 .seat:hover{background:#d1fae5;border-color:#059669;}
 ::-webkit-scrollbar{width:8px;height:8px;}
 ::-webkit-scrollbar-track{background:#f1f5f9;}
@@ -202,21 +202,39 @@ async function renderSeats(c){
   const scorers=await dbAll(S.SCORERS);
   const sSet=new Set(seats.map(s=>s.number));
   const scSet=new Set(scorers.map(s=>s.seat_number));
-  let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共90个位置，A（左）/B（中）/C（右）三列，每行从左到右编号</p></div><div class="flex gap-3"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员位</span><span class="badge bg-gray-100 text-gray-600">未分配</span></div></div><div class="bg-white rounded-xl shadow-sm p-6"><div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto">';
+  let html='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">方位图</h2><p class="text-sm text-gray-500 mt-1">共150个位置（50行×3列），A（左）/B（中）/C（右），编号1-150</p></div><div class="flex gap-3"><span class="badge bg-green-100 text-green-700">已分配</span><span class="badge bg-blue-100 text-blue-700">打分员位</span><span class="badge bg-gray-100 text-gray-600">未分配</span></div></div><div class="bg-white rounded-xl shadow-sm p-6"><div class="grid grid-cols-3 gap-4 max-w-3xl mx-auto">';
   COLS.forEach(col=>{
     let cells='';
-    for(let i=1;i<=30;i++){const num=(i-1)*3+COLS.indexOf(col)+1;const assigned=sSet.has(num);const isSc=scSet.has(num);let cls='bg-white text-gray-700';if(isSc)cls='bg-blue-100 text-blue-700';else if(assigned)cls='bg-green-100 text-green-700';const sd=seats.find(s=>s.number===num);const title=sd?'组号:'+sd.group_number+', 人员:'+sd.person_name:'';cells+='<div class="seat '+cls+'" title="'+title+'" onclick="seatClick('+num+')">'+num+'</div>';}
-    html+='<div><div class="text-center font-bold text-gray-700 mb-3 pb-2 border-b-2 border-emerald-400">'+col.l+'</div><div class="grid grid-cols-3 gap-2">'+cells+'</div></div>';
+    for(let i=1;i<=50;i++){const num=(i-1)*3+COLS.indexOf(col)+1;const assigned=sSet.has(num);const isSc=scSet.has(num);let cls='bg-white text-gray-700';if(isSc)cls='bg-blue-100 text-blue-700';else if(assigned)cls='bg-green-100 text-green-700';const sd=seats.find(s=>s.number===num);const pn=sd&&sd.person_name?sd.person_name:'';const title=sd?'组号:'+sd.group_number+', 人员:'+sd.person_name:'';cells+='<div class="seat '+cls+'" title="'+title+'" onclick="seatClick('+num+')">'+num+(pn?'<div class="text-xs font-normal text-gray-500 mt-0.5 truncate" style="max-width:50px">'+pn+'</div>':'')+'</div>';}
+    html+='<div><div class="text-center font-bold text-gray-700 mb-3 pb-2 border-b-2 border-emerald-400">'+col.l+'</div><div class="grid grid-cols-5 gap-1.5">'+cells+'</div></div>';
   });
-  html+='</div><div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，依此类推到90。点击座位可编辑信息。</p></div></div></div>';
+  html+='</div><div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500"><p>编号规则：第一行1/2/3，第二行4/5/6，依此类推到150。点击座位可编辑信息，保存后自动同步到打分员信息表。</p></div></div></div>';
   c.innerHTML=html;
 }
 window.seatClick=async function(num){
   const seats=await dbAll(S.SEATS);
+  const scorers=await dbAll(S.SCORERS);
   const seat=seats.find(s=>s.number===num)||{number:num,group_number:'',person_name:''};
-  const o=openModal('座位 '+num+'（'+colName(num)+'列，第'+rowOf(num)+'行）',
-    '<div><label class="block text-sm font-medium text-gray-600 mb-1">组号</label><input type="text" id="seatGroup" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(seat.group_number||'')+'" placeholder="组号"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">人员姓名</label><input type="text" id="seatPerson" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(seat.person_name||'')+'" placeholder="人员姓名"/></div>',
-    async()=>{const d={...seat,number:num,group_number:$('#seatGroup').value.trim(),person_name:$('#seatPerson').value.trim()};if(seat.id)d.id=seat.id;await dbPut(S.SEATS,d);toast('保存成功','success');renderModule('seats');}
+  const linkedScorer=scorers.find(s=>s.seat_number===num);
+  const col=colName(num),row=rowOf(num);
+  const o=openModal('座位 '+num+'（'+col+'列，第'+row+'行）',
+    '<div><label class="block text-sm font-medium text-gray-600 mb-1">组号</label><input type="text" id="seatGroup" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(seat.group_number||'')+'" placeholder="组号"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">人员姓名</label><input type="text" id="seatPerson" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="'+(seat.person_name||'')+'" placeholder="人员姓名"/></div><div class="bg-blue-50 rounded-lg p-3 text-sm text-blue-700"><p>保存后将自动同步到打分员信息表，打分员编码：<strong>'+col+'-'+row+'</strong></p></div>',
+    async()=>{
+      const d={...seat,number:num,group_number:$('#seatGroup').value.trim(),person_name:$('#seatPerson').value.trim()};
+      if(seat.id)d.id=seat.id;
+      await dbPut(S.SEATS,d);
+      const personName=$('#seatPerson').value.trim();
+      if(personName){
+        const sd={seat_number:num,column:col,person:personName,scorer_code:col+'-'+row,position:linkedScorer?linkedScorer.position:''};
+        if(linkedScorer)sd.id=linkedScorer.id;
+        await dbPut(S.SCORERS,sd);
+        toast('已同步到打分员信息表','success');
+      }else if(linkedScorer){
+        await dbDel(S.SCORERS,linkedScorer.id);
+        toast('已移除关联的打分员','info');
+      }
+      renderModule('seats');
+    }
   );
 };
 
@@ -224,7 +242,7 @@ window.seatClick=async function(num){
 async function renderScorers(c){
   const list=await dbAll(S.SCORERS);
   let rows=list.length===0?'<tr><td colspan="6" class="text-center py-8 text-gray-400">暂无数据</td></tr>':list.map((s,i)=>'<tr class="hover:bg-gray-50"><td class="px-4 py-3 text-sm text-gray-700">'+(i+1)+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.position||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.person||'')+'</td><td class="px-4 py-3 text-sm text-gray-700">'+(s.column||'')+'</td><td class="px-4 py-3 text-sm text-gray-700 font-medium">'+(s.scorer_code||'')+'</td><td class="px-4 py-3 text-sm"><button onclick="editScorer('+s.id+')" class="text-emerald-600 hover:text-emerald-700 mr-3">编辑</button><button onclick="delScorer('+s.id+')" class="text-red-500 hover:text-red-600">删除</button></td></tr>').join('');
-  c.innerHTML='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">打分员信息</h2><p class="text-sm text-gray-500 mt-1">打分员由方位-人员列数据组成</p></div><button onclick="addScorer()" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">添加打分员</button></div><div class="bg-white rounded-xl shadow-sm overflow-hidden"><table class="w-full"><thead class="bg-gray-50 border-b border-gray-200"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">序号</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">岗位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">人员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">打分员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th></tr></thead><tbody class="divide-y divide-gray-100">'+rows+'</tbody></table></div></div>';
+  c.innerHTML='<div class="p-6"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-gray-800">打分员信息</h2><p class="text-sm text-gray-500 mt-1">打分员由方位-人员列数据组成，在方位图编辑座位时自动同步</p></div><button onclick="addScorer()" class="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600">添加打分员</button></div><div class="bg-white rounded-xl shadow-sm overflow-hidden"><table class="w-full"><thead class="bg-gray-50 border-b border-gray-200"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">序号</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">岗位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">人员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方位</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">打分员</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th></tr></thead><tbody class="divide-y divide-gray-100">'+rows+'</tbody></table></div></div>';
 }
 window.addScorer=()=>{scorerForm();};
 window.editScorer=async id=>{const s=await dbGet(S.SCORERS,id);scorerForm(s);};
